@@ -87,8 +87,11 @@ class Ekfn: public FilterBase
     void predict(const double referenceTime, const double delta);
 
  private:
+    void dumpState(const std::string& prefix, const double& delta);
+    void dumpMsmt(const std::string& prefix, const Measurement& msmt, const std::vector<size_t>& updateIndices);
+
     ekf_t* p_ekf;
-    int idx;
+    int id;
 
 };
 
