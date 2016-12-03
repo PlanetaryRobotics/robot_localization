@@ -1,5 +1,12 @@
+#set( CMAKE_VERBOSE_MAKEFILE on )
+
 cmake_minimum_required(VERSION 2.8.3)
 project(robot_localization)
+
+MESSAGE( STATUS "TINY_EKF_INCL " $ENV{TINY_EKF_INCL})
+MESSAGE( STATUS "TINY_EKF_LIB " $ENV{TINY_EKF_LIB})
+MESSAGE( STATUS "ROBOT_SE_INCL " $ENV{ROBOT_SE_INCL})
+MESSAGE( STATUS "ROBOT_SE_LIB " $ENV{ROBOT_SE_LIB})
 
 find_package(catkin REQUIRED COMPONENTS
   diagnostic_msgs
@@ -33,6 +40,7 @@ add_definitions(-DEIGEN_NO_DEBUG -DEIGEN_MPL2_ONLY)
 
 roslint_cpp()
 
+
 ###################################
 ## catkin specific configuration ##
 ###################################
@@ -54,12 +62,14 @@ catkin_package(
     include
   LIBRARIES 
     ekf
+    ekfn
     filter_base
     filter_utilities
     navsat_transform
     ros_filter
     ros_filter_utilities
     ukf
+    robotse
   CATKIN_DEPENDS
     cmake_modules
     diagnostic_msgs
@@ -81,13 +91,16 @@ catkin_package(
 ###########
 ## Build ##
 ###########
+        
+include_directories(include ${catkin_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIRS} $ENV{TINY_EKF_INCL} $ENV{ROBOT_SE_INCL})
 
-include_directories(include ${catkin_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIRS})
+link_directories($ENV{ROBOT_SE_LIB})
 
 # Library definitions
 add_library(filter_utilities src/filter_utilities.cpp)
 add_library(filter_base src/filter_base.cpp)
 add_library(ekf src/ekf.cpp)
+add_library(ekfn src/ekfn.cpp)
 add_library(ukf src/ukf.cpp)
 add_library(ros_filter_utilities src/ros_filter_utilities.cpp)
 add_library(ros_filter src/ros_filter.cpp)
@@ -99,6 +112,7 @@ add_dependencies(navsat_transform robot_localization_gencpp)
 
 # Executables
 add_executable(ekf_localization_node src/ekf_localization_node.cpp)
+add_executable(ekfn_localization_node src/ekfn_localization_node.cpp)
 add_executable(ukf_localization_node src/ukf_localization_node.cpp)
 add_executable(navsat_transform_node src/navsat_transform_node.cpp)
 
@@ -107,12 +121,15 @@ target_link_libraries(ros_filter_utilities ${catkin_LIBRARIES} ${EIGEN3_LIBRARIE
 target_link_libraries(filter_utilities ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES})
 target_link_libraries(filter_base filter_utilities ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES})
 target_link_libraries(ekf filter_base ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES})
+target_link_libraries(ekfn filter_base robotse ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES})
 target_link_libraries(ukf filter_base ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES})
-target_link_libraries(ros_filter ekf ukf ros_filter_utilities ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES})
-target_link_libraries(ekf_localization_node ros_filter ${catkin_LIBRARIES})
+target_link_libraries(ros_filter ekf ekfn ukf ros_filter_utilities ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES})
+target_link_libraries(ekf_localization_node ros_filter  ${catkin_LIBRARIES})
 target_link_libraries(ukf_localization_node ros_filter ${catkin_LIBRARIES})
 target_link_libraries(navsat_transform filter_utilities ros_filter_utilities ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES})
 target_link_libraries(navsat_transform_node navsat_transform ${catkin_LIBRARIES})
+target_link_libraries(ekfn_localization_node ros_filter)
+
 
 #############
 ## Install ##
@@ -121,6 +138,7 @@ target_link_libraries(navsat_transform_node navsat_transform ${catkin_LIBRARIES}
 ## Mark executables and/or libraries for installation
 install(TARGETS
   ekf
+  ekfn
   filter_base
   filter_utilities
   navsat_transform
@@ -128,9 +146,10 @@ install(TARGETS
   ros_filter_utilities
   ukf
   ekf_localization_node
+  ekfn_localization_node
   navsat_transform_node
   ukf_localization_node
-  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION} 
   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 
@@ -226,3 +245,4 @@ if (CATKIN_ENABLE_TESTING)
   target_link_libraries(test_ukf_localization_node_bag3 ${catkin_LIBRARIES} ${rostest_LIBRARIES})
 
 endif()
+

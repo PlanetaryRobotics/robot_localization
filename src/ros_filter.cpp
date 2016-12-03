@@ -33,6 +33,7 @@
 #include "robot_localization/ros_filter.h"
 #include "robot_localization/filter_utilities.h"
 #include "robot_localization/ekf.h"
+#include "robot_localization/ekfn.h"
 #include "robot_localization/ukf.h"
 
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
@@ -2930,4 +2931,5 @@ namespace RobotLocalization
 // Instantiations of classes is required when template class code
 // is placed in a .cpp file.
 template class RobotLocalization::RosFilter<RobotLocalization::Ekf>;
+template class RobotLocalization::RosFilter<RobotLocalization::Ekfn>;
 template class RobotLocalization::RosFilter<RobotLocalization::Ukf>;

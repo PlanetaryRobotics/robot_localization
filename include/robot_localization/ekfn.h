@@ -40,8 +40,10 @@
 #include <set>
 #include <queue>
 
-struct ekf_t;
-
+extern "C"
+{
+    #include "se_model.h"
+}
 
 namespace RobotLocalization
 {
@@ -85,7 +87,9 @@ class Ekfn: public FilterBase
     void predict(const double referenceTime, const double delta);
 
  private:
-    struct ekf_t* p_ekf;
+    ekf_t* p_ekf;
+    int idx;
+
 };
 
 }  // namespace RobotLocalization

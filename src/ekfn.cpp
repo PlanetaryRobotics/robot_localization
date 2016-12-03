@@ -9,20 +9,20 @@
 #include "robot_localization/ekfn.h"
 #include "robot_localization/filter_common.h"
 
-#include "ekf_native/tiny_ekf.h"
-
-extern "C" 
-{
-    void rl_init();
-    void rl_predict(double delta);
-    void rl_update(int* msmt_idx, int num_msmt, double* msmt, double** msmt_covariance);
-}
-
 namespace RobotLocalization
 {
     Ekfn::Ekfn(std::vector<double>) : FilterBase()  // Must initialize filter base!
     {
-        rl_init();
+        idx = -1;
+        se_init(p_ekf);
+
+        int i, j;
+        for (i=0; i<N_STATE; ++i)
+            for (j=0; i<N_STATE; ++i)
+                p_ekf->F[i][j] = 0;
+
+        for (i=0; i<N_STATE; ++i)
+            p_ekf->A[i][i] = 1;    
     }
 
     Ekfn::~Ekfn()
@@ -31,54 +31,39 @@ namespace RobotLocalization
     
     void Ekfn::predict(const double referenceTime, const double delta)
     {
-        rl_predict(delta);
+        se_predict(delta, p_ekf);
     }
 
     void Ekfn::correct(const Measurement &measurement)
     {
-        std::vector<size_t> updateIndices;
+        int num_msmt = 0;
+        int updateIndices[measurement.updateVector_.size()];
         for (size_t i = 0; i < measurement.updateVector_.size(); ++i)
         {
             if (measurement.updateVector_[i])
             {
                 // Handle nan and inf values in measurements
                 if (!std::isnan(measurement.measurement_(i)) && !std::isinf(measurement.measurement_(i)))
-                {
-                     updateIndices.push_back(i);
-                }
+                     updateIndices[num_msmt++] = i;
             }
         }
-        
-        int num_msmt = updateIndices.size();
-        double msmt[num_msmt];
-        double msmt_covariance[num_msmt][num_msmt];
-        for (size_t i = 0; i < num_msmt; ++i)
+       
+        int count=0; 
+        int msmt_size = measurement.measurement_.size();
+        double msmt[msmt_size];
+        double msmt_covariance[msmt_size*msmt_size];
+        for (size_t i = 0; i < msmt_size; ++i)
         {
-            msmt[i] = measurement.measurement_(updateIndices[i]);
-            for (size_t j = 0; j < num_msmt; ++j)
-            {
-                msmt_covariance[i][j] = measurement.covariance_(updateIndices[i], updateIndices[j]);
-
-		// Handle negative (read: bad) covariances in the measurement. Rather
-		// than exclude the measurement or make up a covariance, just take
-		// the absolute value.
-		if (msmt_covariance[i][j] < 0)
-		{
-		    msmt_covariance[i][j] = ::fabs(msmt_covariance[i][j] );
-		}
-
-		// If the measurement variance for a given variable is very
-                // near 0 (as in e-50 or so) and the variance for that
-                // variable in the covariance matrix is also near zero, then
-                // the Kalman gain computation will blow up. Really, no
-                // measurement can be completely without error, so add a small
-                // amount in that case.
-                if (msmt_covariance[i][j]  < 1e-9)
-                {
-		    msmt_covariance[i][j]  = 1e-9;
-		}
-	    }
+	    for (size_t j=0 ; j<msmt_size ; j++)
+	    {
+   	        msmt_covariance[count++] = measurement.covariance_(i, j);
+		if (msmt_covariance[count-1] < 0)
+		    msmt_covariance[count-1] = ::fabs(msmt_covariance[count-1] );
+                if (msmt_covariance[count-1]  < 1e-9)
+		    msmt_covariance[count-1]  = 1e-9;
+ 	    }
 	}        
+        se_update(msmt, updateIndices, num_msmt, msmt_covariance, p_ekf, idx);
     }
 
 }  // namespace RobotLocalization
