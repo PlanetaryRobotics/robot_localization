@@ -14,28 +14,24 @@ namespace RobotLocalization
     Ekfn::Ekfn(std::vector<double>) : FilterBase()  // Must initialize filter base!
     {
         id = -1;
-        se_init(p_ekf);
-
-        int i, j;
-        for (i=0; i<N_STATE; ++i)
-            for (j=0; i<N_STATE; ++i)
-                p_ekf->F[i][j] = 0;
-
-        for (i=0; i<N_STATE; ++i)
-            p_ekf->A[i][i] = 1;    
+        p_ekf = se_init();
     }
 
     Ekfn::~Ekfn()
     {
+        se_deinit();
     }
     
     void Ekfn::predict(const double referenceTime, const double delta)
     {
         id += 1; 
         dumpState("k-1+", delta);
-  
-        se_predict(delta, p_ekf);
-  
+
+	// TODO Add controls
+	// prepareControl(referenceTime, delta);
+       
+        se_predict(delta, id);
+        
         dumpState("k-", delta);
     }
 
@@ -54,27 +50,42 @@ namespace RobotLocalization
                      updateIndices[num_msmt++] = i;
             }
         }
-       
+      
         std::vector<size_t> updateIndicesVec;
         updateIndicesVec.assign(updateIndices, updateIndices+num_msmt);       
         dumpMsmt("k-", measurement, updateIndicesVec);
 
-        int count=0; 
+        // populate msmt
+        int count = 0;
         int msmt_size = measurement.measurement_.size();
         double msmt[msmt_size];
+        for (size_t i = 0; i < msmt_size; ++i)
+        {
+	    msmt[count++] = measurement.measurement_[i];
+	}
+
+        // populate msmt covariance
+        count=0; 
         double msmt_covariance[msmt_size*msmt_size];
         for (size_t i = 0; i < msmt_size; ++i)
         {
 	    for (size_t j=0 ; j<msmt_size ; j++)
 	    {
    	        msmt_covariance[count++] = measurement.covariance_(i, j);
-		if (msmt_covariance[count-1] < 0)
-		    msmt_covariance[count-1] = ::fabs(msmt_covariance[count-1] );
-                if (msmt_covariance[count-1]  < 1e-9)
-		    msmt_covariance[count-1]  = 1e-9;
  	    }
 	}        
-        se_update(msmt, updateIndices, num_msmt, msmt_covariance, p_ekf, id);
+        se_update(msmt, updateIndices, num_msmt, msmt_covariance, id);
+
+	// copy state
+        for (int i=0; i<N_STATE; i++)
+	    state_(i) = p_ekf->x[i];
+
+	// copy covariance
+	for (int i=0; i<N_STATE; i++)
+	{
+	  for (int j=0 ; j<N_STATE; j++)
+	        estimateErrorCovariance_(i, j) = p_ekf->P[i][j];
+	}    
 
 	dumpState("k+", -1);
         dumpMsmt("k+", measurement, updateIndicesVec);
@@ -85,8 +96,6 @@ namespace RobotLocalization
     FB_DEBUG("EKFN_s_" << suffix << "_" << id << "=" << state_);
     FB_DEBUG("EKFN_p_" << suffix << "_" << id  << "=" << estimateErrorCovariance_);
     FB_DEBUG("EKFN_q_" << suffix << "_" << id << "=" << processNoiseCovariance_);
-    FB_DEBUG("EKFN_a_" << suffix << "_" << id << "=" << transferFunction_);
-    FB_DEBUG("EKFN_f_" << suffix << "_" << id << "=" << transferFunctionJacobian_);
     if (delta > 0)
         FB_DEBUG("EKFN_d_" << suffix << "_" << id << "=" << delta << "\n");
   }
